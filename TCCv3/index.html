@@ -1,0 +1,157 @@
+﻿<!--
+ Author: Bernardo M. Muller
+ Date: 24/03/2014 
+ Part of "Multiuser interaction with SignalR", a conclusion work
+ for obtaining a especialization title
+ Contact: saddamm@gmail.com
+-->
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Interação multi-usuário</title>
+</head>
+<body>
+    <script src="/Scripts/jquery-1.6.4.js"></script>
+    <script src="/Scripts/jquery.signalR-2.0.2.js"></script>
+    <script src="signalr/hubs"></script>
+
+    <div>
+        <canvas id="canvas01" height="400" width="500" style="border: solid" />
+    </div>
+    <div id="nomeUsuario"></div>
+
+    <script>
+        $.connection.hub.start();
+        var theHub = $.connection.conversaHub;
+
+        var _canvas = document.getElementById("canvas01");
+        var _context = _canvas.getContext("2d");
+
+        var ponto01x, ponto01y;
+        var ponto02x, ponto02y;
+
+        $.connection.hub.logging = true;
+
+        _canvas.oncontextmenu = function() { return false; };
+
+        var userName = prompt("Informe seu usuário: ");
+        $(function () {
+            if (!userName) {
+                userName = "User" + Math.floor((Math.random() * 1000) + 1);
+            }
+
+            $('#nomeUsuario').html('Seu usuário é: ' + userName);
+
+
+            if (navigator.msPointerEnabled) {
+                _canvas.addEventListener('MSPointerDown', paintCanvas, false);
+            }
+            else {
+                _canvas.addEventListener('mousedown', paintCanvas, false);
+            }
+
+            //recebe mensagem com informaçoes sobre o novo nó
+            theHub.client.receivePointInfo = function (user, text, pointX, pointY) {
+                _context.font = "12px arial";
+                if (user == userName)
+                    _context.fillStyle = "rgb(255, 0, 0)";
+                else
+                    _context.fillStyle = "black";
+
+                _context.fillRect(pointX - 10, pointY - 10, 15, 15);
+                var pontoX = parseInt(pointX) - 5;
+                var pontoY = parseInt(pointY) + 17;
+                _context.fillStyle = "blue";
+                _context.textAlign = "center";
+                _context.fillText(user, pointX - 5, pointY - 17);
+
+                _context.fillStyle = "black";
+                _context.textAlign = "center";
+                _context.fillText(text, pontoX, pontoY);
+            }
+
+            theHub.client.sendLineInfo = function (_point01x, _point01y, _point02x, _point02y) {
+                _context.moveTo(_point01x, _point01y);
+                _context.lineTo(_point02x, _point02y);
+
+                _context.strokeStyle = "#6E8B3D";
+                _context.stroke();
+                
+                _context.fillStyle = "#6E8B3D";
+                _context.strokeStyle = "#6E8B3D";
+                _context.beginPath();
+                _context.arc(_point02x, _point02y, 4, 0, Math.PI * 2, true);
+                _context.closePath();
+                _context.stroke();
+                _context.fill();
+            }
+        });
+
+        function paintCanvas(evt) {
+            if (evt.which == 1) //esquerdo
+            {
+                coords = _canvas.relMouseCoords(evt);
+                canvasX = coords.x;
+                canvasY = coords.y;                
+                var texto;
+                do {
+                    texto = prompt("Informe um texto");
+                    if (texto && (texto.trim() == "" || texto.length > 20)) {
+                        alert('Texto informado não pode ser vazio e\n deve conter no máximo 20 caracteres');
+                    }
+                } while (texto && (texto.trim() == "" || texto.length > 20));
+
+                if (texto != null && texto != "") {
+                    //envia mensagem com informações sobre o novo nó
+                    // Chama o método Send no  hub.
+                    theHub.server.sendPointInfo(userName, texto, canvasX, canvasY);                    
+                }
+            }
+            else
+            {
+                if (evt.which == 3) //direito
+                {
+                    coords = _canvas.relMouseCoords(evt);
+                    if (ponto01x && ponto01y) {                        
+                        ponto02x = coords.x;
+                        ponto02y = coords.y;
+                        //manda a informação da linha para todos os clientes conectados              
+                        theHub.server.sendLineInfo(ponto01x, ponto01y, ponto02x, ponto02y);
+
+                        ponto01x = null;
+                        ponto01y = null;
+                        ponto02x = null;
+                        ponto02y = null;
+                    } else {
+                        ponto01x = coords.x;
+                        ponto01y = coords.y;
+                    }
+                }
+            }
+        }
+
+        function relMouseCoords(event) {
+            var totalOffsetX = 0;
+            var totalOffsetY = 0;
+            var canvasX = 0;
+            var canvasY = 0;
+            var currentElement = this;
+
+            do {
+                totalOffsetX += currentElement.offsetLeft - currentElement.scrollLeft;
+                totalOffsetY += currentElement.offsetTop - currentElement.scrollTop;
+            }
+            while (currentElement = currentElement.offsetParent)
+
+            canvasX = event.pageX - totalOffsetX;
+            canvasY = event.pageY - totalOffsetY;
+
+            return { x: canvasX, y: canvasY }
+        }
+        HTMLCanvasElement.prototype.relMouseCoords = relMouseCoords;
+
+    </script>
+
+</body>
+</html>
